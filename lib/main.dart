@@ -1,14 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:postgres/postgres.dart';
 
-void main() => runApp(const BiblioTechProApp());
+void main() {
+  runApp(const BibliotecaApp());
+}
 
 // Variables globales para la sesión
-String usuarioActivo = "";
 String rolActivo = "";
+String usuarioActivo = "";
 
-class BiblioTechProApp extends StatelessWidget {
-  const BiblioTechProApp({super.key});
+class BibliotecaApp extends StatelessWidget {
+  const BibliotecaApp({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +23,7 @@ class BiblioTechProApp extends StatelessWidget {
           seedColor: Colors.teal,
           brightness: Brightness.light,
         ),
-        fontFamily: 'Segoe UI', // Estilo más limpio
+        fontFamily: 'Segoe UI',
       ),
       home: const LoginScreen(),
     );
@@ -29,10 +31,10 @@ class BiblioTechProApp extends StatelessWidget {
 }
 
 // --- CONEXIÓN A BASE DE DATOS ---
-Future<Connection> _conectarDB() async {
+Future<Connection> _obtenerConexion() async {
   return await Connection.open(
     Endpoint(
-      host: '127.0.0.1',
+      host: '127.0.0.1', // localhost
       port: 5432,
       database: 'Biblioteca',
       username: 'postgres',
@@ -43,116 +45,105 @@ Future<Connection> _conectarDB() async {
 }
 
 // ==========================================================
-// 1. LOGIN SCREEN (Elegante)
+// 1. PANTALLA DE LOGIN (Interfaz Principal)
 // ==========================================================
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
+
   @override
   State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _u = TextEditingController();
-  final _p = TextEditingController();
+  final TextEditingController _userController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
-  Future<void> _entrar() async {
+  Future<void> _login() async {
     try {
-      final conn = await _conectarDB();
-      final res = await conn.execute(
-        Sql.named(
-          'SELECT * FROM Usuario WHERE nombre_del_usuario = @u AND contraseña = @p',
-        ),
-        parameters: {'u': _u.text, 'p': _p.text},
+      final conn = await _obtenerConexion();
+
+      final result = await conn.execute(
+        //////////////////////////////modificar contrasenia 
+        Sql.named('SELECT * FROM "Usuario" WHERE nombre_del_usuario = @u AND contraseña = @p'),
+        parameters: {
+          'u': _userController.text,
+          'p': _passwordController.text,
+        },
       );
       await conn.close();
 
-      if (res.isNotEmpty) {
-        usuarioActivo = _u.text;
+      if (result.isNotEmpty) {
+        usuarioActivo = _userController.text;
+        // Asignación de roles basada en el segundo código
+        
         rolActivo = (usuarioActivo == 'administrador') ? 'ADMIN' : 'EMPLEADO';
+        
         if (!mounted) return;
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const DashboardHome()),
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
         );
       } else {
-        _aviso("Acceso Incorrecto", Colors.redAccent);
+        _mostrarAlerta('Credenciales incorrectas.', Colors.red);
       }
     } catch (e) {
-      _aviso("Error: $e", Colors.orange);
+      _mostrarAlerta('Error de base de datos: $e', Colors.red);
     }
   }
 
-  void _aviso(String m, Color c) => ScaffoldMessenger.of(
-    context,
-  ).showSnackBar(SnackBar(content: Text(m), backgroundColor: c));
+  void _mostrarAlerta(String mensaje, Color color) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(mensaje), backgroundColor: color));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        width: double.infinity,
         decoration: const BoxDecoration(
           gradient: LinearGradient(
-            colors: [Color(0xFF1e3c72), Color(0xFF2a5298)],
-            begin: Alignment.topCenter,
+            colors: [Colors.indigo, Colors.lightBlueAccent],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
         ),
         child: Center(
-          child: Container(
-            width: 350,
-            padding: const EdgeInsets.all(30),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
-              borderRadius: BorderRadius.circular(30),
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.auto_stories,
-                  size: 60,
-                  color: Color(0xFF1e3c72),
-                ),
-                const SizedBox(height: 10),
-                const Text(
-                  'BIBLIOTECH VIRTUAL',
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1e3c72),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                TextField(
-                  controller: _u,
-                  decoration: const InputDecoration(
-                    labelText: 'Usuario',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 15),
-                TextField(
-                  controller: _p,
-                  obscureText: true,
-                  decoration: const InputDecoration(
-                    labelText: 'Contraseña',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 30),
-                SizedBox(
-                  width: double.infinity,
-                  height: 50,
-                  child: ElevatedButton(
-                    onPressed: _entrar,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFF1e3c72),
-                      foregroundColor: Colors.white,
+          child: SingleChildScrollView(
+            child: Card(
+              elevation: 12,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              margin: const EdgeInsets.symmetric(horizontal: 40),
+              child: Padding(
+                padding: const EdgeInsets.all(32.0),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.local_library, size: 80, color: Colors.indigo),
+                    const SizedBox(height: 20),
+                    const Text('Bienvenido', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 30),
+                    TextField(
+                      controller: _userController,
+                      decoration: InputDecoration(labelText: 'Usuario', prefixIcon: const Icon(Icons.person), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
                     ),
-                    child: const Text('INGRESAR'),
-                  ),
+                    const SizedBox(height: 20),
+                    TextField(
+                      controller: _passwordController,
+                      obscureText: true,
+                      decoration: InputDecoration(labelText: 'Contraseña', prefixIcon: const Icon(Icons.lock), border: OutlineInputBorder(borderRadius: BorderRadius.circular(10))),
+                    ),
+                    const SizedBox(height: 30),
+                    SizedBox(
+                      width: double.infinity,
+                      height: 50,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: Colors.indigo, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))),
+                        onPressed: _login,
+                        child: const Text('Iniciar Sesión', style: TextStyle(color: Colors.white, fontSize: 18)),
+                      ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ),
         ),
@@ -162,242 +153,145 @@ class _LoginScreenState extends State<LoginScreen> {
 }
 
 // ==========================================================
-// 2. DASHBOARD (Presentación + Menús Cuadrados)
+// 2. DASHBOARD / HOME (Menú General con Drawer)
 // ==========================================================
-class DashboardHome extends StatelessWidget {
-  const DashboardHome({super.key});
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF0F2F5),
       appBar: AppBar(
-        elevation: 0,
-        backgroundColor: Colors.white,
-        title: Text(
-          'Sesión iniciada: $usuarioActivo',
-          style: const TextStyle(
-            fontSize: 14,
-            color: Colors.blueGrey,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: const Text('BiblioTech Software'),
         actions: [
-          IconButton(
-            onPressed: () => Navigator.pop(context),
-            icon: const Icon(Icons.power_settings_new, color: Colors.red),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 20.0),
+              child: Text('Usuario: $usuarioActivo', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+            ),
           ),
         ],
       ),
-      body: Column(
-        children: [
-          // SECCIÓN DE PRESENTACIÓN
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(30),
-            decoration: const BoxDecoration(
-              color: Colors.white,
-              borderRadius: BorderRadius.only(
-                bottomLeft: Radius.circular(50),
-                bottomRight: Radius.circular(50),
+      // MENÚ GENERAL (Drawer de 3 líneas)
+      drawer: Drawer(
+        child: ListView(
+          padding: EdgeInsets.zero,
+          children: [
+            DrawerHeader(
+              decoration: const BoxDecoration(color: Colors.indigo),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Text('MENÚ PRINCIPAL', style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  Text('Rol: $rolActivo', style: const TextStyle(color: Colors.white70, fontSize: 16)),
+                ],
               ),
-              boxShadow: [BoxShadow(color: Colors.black12, blurRadius: 10)],
             ),
-            child: Column(
-              children: [
-                const Icon(Icons.account_balance, size: 50, color: Colors.teal),
-                const SizedBox(height: 15),
-                const Text(
-                  'BIENVENIDO A LA BIBLIOTECA VIRTUAL',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w900,
-                    color: Colors.blueGrey,
-                  ),
-                ),
-                const SizedBox(height: 5),
-                const Text(
-                  'Gestión inteligente de recursos educativos',
-                  style: TextStyle(color: Colors.grey, fontSize: 13),
-                ),
-              ],
+            
+            // Opciones dinámicas según el rol
+            if (rolActivo == 'ADMIN') ...[
+              _crearItemMenu(context, 'Gestión de Alumnos', Icons.school, 'ALUMNOS'),
+              _crearItemMenu(context, 'Gestión de Profesores', Icons.work, 'PROFESORES'),
+              _crearItemMenu(context, 'Gestión de Empleados', Icons.badge, 'EMPLEADOS'),
+            ],
+            if (rolActivo == 'EMPLEADO' || rolActivo == 'ADMIN') ...[
+              _crearItemMenu(context, 'Gestión de Libros', Icons.menu_book, 'LIBROS'),
+            ],
+            
+            const Divider(),
+            ListTile(
+              leading: const Icon(Icons.exit_to_app, color: Colors.red),
+              title: const Text('Cerrar Sesión', style: TextStyle(color: Colors.red, fontWeight: FontWeight.bold)),
+              onTap: () {
+                Navigator.pushReplacement(context, MaterialPageRoute(builder: (context) => const LoginScreen()));
+              },
             ),
-          ),
-          const SizedBox(height: 30),
-          const Text(
-            'SELECCIONE UN APARTADO',
-            style: TextStyle(
-              letterSpacing: 2,
-              fontSize: 12,
-              fontWeight: FontWeight.bold,
-              color: Colors.blueGrey,
+          ],
+        ),
+      ),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const Text('Panel de Administración', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.indigo)),
+            const SizedBox(height: 30),
+            Container(
+              decoration: BoxDecoration(border: Border.all(color: Colors.indigo, width: 5), borderRadius: BorderRadius.circular(15)),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(10),
+                child: Image.network('https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=600&q=80', width: 500, height: 300, fit: BoxFit.cover),
+              ),
             ),
-          ),
-          const SizedBox(height: 20),
-          // MENÚS CUADRADOS CON BORDES CIRCULARES
-          Expanded(
-            child: GridView.count(
-              padding: const EdgeInsets.symmetric(horizontal: 40),
-              crossAxisCount: 2,
-              crossAxisSpacing: 20,
-              mainAxisSpacing: 20,
-              children: [
-                if (rolActivo == 'ADMIN') ...[
-                  _menuSquare(
-                    context,
-                    'ALUMNOS',
-                    Icons.school,
-                    Colors.blue,
-                    const SubMenuScreen(modulo: 'ALUMNOS', color: Colors.blue),
-                  ),
-                  _menuSquare(
-                    context,
-                    'PROFESORES',
-                    Icons.work,
-                    Colors.teal,
-                    const SubMenuScreen(
-                      modulo: 'PROFESORES',
-                      color: Colors.teal,
-                    ),
-                  ),
-                  _menuSquare(
-                    context,
-                    'EMPLEADOS',
-                    Icons.badge,
-                    Colors.orange,
-                    const SubMenuScreen(
-                      modulo: 'EMPLEADOS',
-                      color: Colors.orange,
-                    ),
-                  ),
-                ],
-                if (rolActivo == 'EMPLEADO') ...[
-                  _menuSquare(
-                    context,
-                    'LIBROS',
-                    Icons.menu_book,
-                    Colors.deepPurple,
-                    const SubMenuScreen(
-                      modulo: 'LIBROS',
-                      color: Colors.deepPurple,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
-  Widget _menuSquare(
-    BuildContext context,
-    String t,
-    IconData i,
-    Color c,
-    Widget next,
-  ) {
-    return InkWell(
-      onTap: () => Navigator.push(
-        context,
-        MaterialPageRoute(builder: (context) => next),
-      ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(25),
-          boxShadow: [
-            BoxShadow(
-              color: c.withOpacity(0.2),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
-            ),
-          ],
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            CircleAvatar(
-              backgroundColor: c.withOpacity(0.1),
-              child: Icon(i, color: c),
-            ),
-            const SizedBox(height: 10),
-            Text(
-              t,
-              style: TextStyle(
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                color: c,
-              ),
-            ),
-          ],
-        ),
-      ),
+  // Helper para generar las opciones del Drawer y navegar a sus respectivas pantallas
+  Widget _crearItemMenu(BuildContext context, String titulo, IconData icono, String modulo) {
+    return ListTile(
+      leading: Icon(icono, color: Colors.indigo),
+      title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
+      trailing: const Icon(Icons.arrow_forward_ios, size: 14),
+      onTap: () {
+        Navigator.pop(context); // Cierra el Drawer
+        Navigator.push(context, MaterialPageRoute(builder: (context) => SubMenuScreen(modulo: modulo)));
+      },
     );
   }
 }
 
 // ==========================================================
-// 3. SUBMENÚS (Registrar, Consultar, etc)
+// 3. PANTALLA DE SUBMENÚ (Cada menú tiene la suya)
 // ==========================================================
 class SubMenuScreen extends StatelessWidget {
   final String modulo;
-  final Color color;
-  const SubMenuScreen({super.key, required this.modulo, required this.color});
+  const SubMenuScreen({super.key, required this.modulo});
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: Text('Gestión de $modulo'),
-        backgroundColor: color,
+        backgroundColor: Colors.indigo,
         foregroundColor: Colors.white,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
         children: [
-          _option(
+          _opcion(
             context,
-            'Registrar',
+            'Registrar $modulo',
             Icons.add_circle_outline,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => FormularioScreen(tipo: modulo),
-              ),
-            ),
+            () => Navigator.push(context, MaterialPageRoute(builder: (context) => FormularioScreen(tipo: modulo))),
           ),
-          _option(context, 'Consulta Individual', Icons.person_search, () {}),
-          _option(
+          _opcion(context, 'Consulta Individual', Icons.person_search, () {}),
+          _opcion(
             context,
             'Consulta General',
             Icons.format_list_bulleted,
-            () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => TablaScreen(tipo: modulo),
-              ),
-            ),
+            () => Navigator.push(context, MaterialPageRoute(builder: (context) => TablaScreen(tipo: modulo))),
           ),
-          _option(context, 'Modificar', Icons.edit_note, () {}),
-          _option(context, 'Eliminar', Icons.delete_sweep, () {}),
+          _opcion(context, 'Modificar', Icons.edit_note, () {}),
+          _opcion(context, 'Eliminar', Icons.delete_sweep, () {}),
         ],
       ),
     );
   }
 
-  Widget _option(BuildContext context, String t, IconData i, VoidCallback fn) {
+  Widget _opcion(BuildContext context, String t, IconData i, VoidCallback fn) {
     return Card(
-      elevation: 0,
+      elevation: 2,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(15),
-        side: BorderSide(color: Colors.grey.shade200),
+        side: BorderSide(color: Colors.indigo.shade100),
       ),
       margin: const EdgeInsets.only(bottom: 10),
       child: ListTile(
-        leading: Icon(i, color: color),
+        leading: Icon(i, color: Colors.indigo),
         title: Text(t, style: const TextStyle(fontWeight: FontWeight.w600)),
         trailing: const Icon(Icons.arrow_forward_ios, size: 14),
         onTap: fn,
@@ -407,11 +301,12 @@ class SubMenuScreen extends StatelessWidget {
 }
 
 // ==========================================================
-// 4. FORMULARIOS Y TABLAS (Lógica de Datos)
+// 4. FORMULARIOS DINÁMICOS
 // ==========================================================
 class FormularioScreen extends StatefulWidget {
   final String tipo;
   const FormularioScreen({super.key, required this.tipo});
+  
   @override
   State<FormularioScreen> createState() => _FormularioScreenState();
 }
@@ -423,40 +318,16 @@ class _FormularioScreenState extends State<FormularioScreen> {
   void initState() {
     super.initState();
     List<String> f = [];
-    if (widget.tipo == 'ALUMNOS')
-      f = [
-        'Código',
-        'Nombre',
-        'Carrera',
-        'Correo',
-        'Dirección',
-        'Teléfono',
-        'Sexo',
-        'Fecha_nac',
-      ];
-    if (widget.tipo == 'PROFESORES')
-      f = [
-        'Código',
-        'Nombre',
-        'Dirección',
-        'Teléfono',
-        'Sexo',
-        'Fecha_nac',
-        'Depto',
-        'Correo',
-      ];
-    if (widget.tipo == 'EMPLEADOS')
-      f = [
-        'Codigo',
-        'Nombre',
-        'Direccion',
-        'Telefono',
-        'Sexo',
-        'Fecha_nac',
-        'Turno',
-      ];
-    if (widget.tipo == 'LIBROS')
+    if (widget.tipo == 'ALUMNOS') {
+      f = ['Código', 'Nombre', 'Carrera', 'Correo', 'Dirección', 'Teléfono', 'Sexo', 'Fecha_nac'];
+    } else if (widget.tipo == 'PROFESORES') {
+      f = ['Código', 'Nombre', 'Dirección', 'Teléfono', 'Sexo', 'Fecha_nac', 'Depto', 'Correo'];
+    } else if (widget.tipo == 'EMPLEADOS') {
+      f = ['Codigo', 'Nombre', 'Direccion', 'Telefono', 'Sexo', 'Fecha_nac', 'Turno'];
+    } else if (widget.tipo == 'LIBROS') {
       f = ['ISBN', 'Título', 'Autores', 'Editorial', 'Año_pub', 'Num_ejemplar'];
+    }
+    
     for (var x in f) {
       _ctrls[x] = TextEditingController();
     }
@@ -464,7 +335,7 @@ class _FormularioScreenState extends State<FormularioScreen> {
 
   Future<void> _enviar() async {
     try {
-      final conn = await _conectarDB();
+      final conn = await _obtenerConexion();
       String sql = "";
       Map<String, dynamic> p = {};
 
@@ -518,12 +389,16 @@ class _FormularioScreenState extends State<FormularioScreen> {
       await conn.execute(Sql.named(sql), parameters: p);
       await conn.close();
       if (!mounted) return;
+      
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Guardado en la Nube con éxito'),
-          backgroundColor: Colors.teal,
-        ),
+        const SnackBar(content: Text('Guardado en la Base de Datos con éxito'), backgroundColor: Colors.green),
       );
+      
+      // Limpiar campos después de guardar
+      for (var key in _ctrls.keys) {
+        _ctrls[key]!.clear();
+      }
+
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
@@ -534,11 +409,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Alta de ${widget.tipo}')),
+      appBar: AppBar(title: Text('Alta de ${widget.tipo}'), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(25),
         child: Column(
           children: [
+            const Text('Complete los campos para realizar el registro:', style: TextStyle(fontSize: 16, color: Colors.grey)),
+            const SizedBox(height: 20),
             ..._ctrls.entries.map(
               (e) => Padding(
                 padding: const EdgeInsets.only(bottom: 15),
@@ -546,9 +423,8 @@ class _FormularioScreenState extends State<FormularioScreen> {
                   controller: e.value,
                   decoration: InputDecoration(
                     labelText: e.key,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(15),
-                    ),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    prefixIcon: const Icon(Icons.edit, color: Colors.indigo),
                   ),
                 ),
               ),
@@ -557,14 +433,14 @@ class _FormularioScreenState extends State<FormularioScreen> {
             SizedBox(
               width: double.infinity,
               height: 50,
-              child: ElevatedButton(
+              child: ElevatedButton.icon(
                 onPressed: _enviar,
                 style: ElevatedButton.styleFrom(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(15),
-                  ),
+                  backgroundColor: Colors.indigo,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                 ),
-                child: const Text('PROCESAR ALTA'),
+                icon: const Icon(Icons.save, color: Colors.white),
+                label: const Text('PROCESAR ALTA', style: TextStyle(color: Colors.white, fontSize: 16)),
               ),
             ),
           ],
@@ -574,9 +450,13 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 }
 
+// ==========================================================
+// 5. TABLAS DINÁMICAS
+// ==========================================================
 class TablaScreen extends StatefulWidget {
   final String tipo;
   const TablaScreen({super.key, required this.tipo});
+  
   @override
   State<TablaScreen> createState() => _TablaScreenState();
 }
@@ -586,25 +466,35 @@ class _TablaScreenState extends State<TablaScreen> {
   List<String> _cabecera = [];
 
   Future<void> _leer() async {
-    final conn = await _conectarDB();
-    String t = widget.tipo == 'ALUMNOS'
-        ? 'Alumno'
-        : (widget.tipo == 'PROFESORES'
-              ? 'Profesor'
-              : (widget.tipo == 'EMPLEADOS' ? 'Empleado' : 'Libro'));
-    final res = await conn.execute('SELECT * FROM $t');
-    setState(() {
-      _filas = res.map((r) => r.toList()).toList();
-      if (widget.tipo == 'ALUMNOS')
-        _cabecera = ['Cod', 'Nom', 'Car', 'Mail', 'Dir', 'Tel', 'S', 'Nac'];
-      else if (widget.tipo == 'PROFESORES')
-        _cabecera = ['Cod', 'Nom', 'Dir', 'Tel', 'S', 'Nac', 'Dep', 'Mail'];
-      else if (widget.tipo == 'EMPLEADOS')
-        _cabecera = ['Cod', 'Nom', 'Dir', 'Tel', 'S', 'Nac', 'Tur'];
-      else
-        _cabecera = ['ISBN', 'Tit', 'Aut', 'Edi', 'Año', 'Ej'];
-    });
-    await conn.close();
+    try {
+      final conn = await _obtenerConexion();
+      
+      String t = "";
+      if (widget.tipo == 'ALUMNOS') t = 'Alumno';
+      else if (widget.tipo == 'PROFESORES') t = 'Profesor';
+      else if (widget.tipo == 'EMPLEADOS') t = 'Empleado';
+      else if (widget.tipo == 'LIBROS') t = 'Libro';
+
+      final res = await conn.execute('SELECT * FROM $t');
+      
+      setState(() {
+        _filas = res.map((r) => r.toList()).toList();
+        
+        if (widget.tipo == 'ALUMNOS') {
+          _cabecera = ['Cod', 'Nom', 'Car', 'Mail', 'Dir', 'Tel', 'S', 'Nac'];
+        } else if (widget.tipo == 'PROFESORES') {
+          _cabecera = ['Cod', 'Nom', 'Dir', 'Tel', 'S', 'Nac', 'Dep', 'Mail'];
+        } else if (widget.tipo == 'EMPLEADOS') {
+          _cabecera = ['Cod', 'Nom', 'Dir', 'Tel', 'S', 'Nac', 'Tur'];
+        } else {
+          _cabecera = ['ISBN', 'Tit', 'Aut', 'Edi', 'Año', 'Ej'];
+        }
+      });
+      await conn.close();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error al cargar: $e'), backgroundColor: Colors.red));
+    }
   }
 
   @override
@@ -616,31 +506,32 @@ class _TablaScreenState extends State<TablaScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text('Listado ${widget.tipo}')),
-      body: SingleChildScrollView(
-        scrollDirection: Axis.horizontal,
-        child: DataTable(
-          columns: _cabecera
-              .map(
-                (c) => DataColumn(
-                  label: Text(
-                    c,
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+      appBar: AppBar(title: Text('Listado General de ${widget.tipo}'), backgroundColor: Colors.indigo, foregroundColor: Colors.white),
+      body: Padding(
+        padding: const EdgeInsets.all(20.0),
+        child: _filas.isEmpty 
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
+              children: [
+                SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: DataTable(
+                    headingRowColor: WidgetStateProperty.all(Colors.indigo.withOpacity(0.2)),
+                    columns: _cabecera.map((c) => DataColumn(label: Text(c, style: const TextStyle(fontWeight: FontWeight.bold)))).toList(),
+                    rows: _filas.map((f) {
+                      return DataRow(
+                        cells: f.map((celda) {
+                          String valor = celda is DateTime ? "${celda.year}-${celda.month.toString().padLeft(2, '0')}-${celda.day.toString().padLeft(2, '0')}" : celda.toString();
+                          return DataCell(Text(valor));
+                        }).toList(),
+                      );
+                    }).toList(),
                   ),
                 ),
-              )
-              .toList(),
-          rows: _filas
-              .map(
-                (f) => DataRow(
-                  cells: f
-                      .map((celda) => DataCell(Text(celda.toString())))
-                      .toList(),
-                ),
-              )
-              .toList(),
-        ),
+              ],
+            ),
       ),
     );
   }
 }
+
