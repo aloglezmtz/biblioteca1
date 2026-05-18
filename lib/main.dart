@@ -673,14 +673,19 @@ class _FormDevolverScreenState extends State<FormDevolverScreen> {
         return;
       }
 
-      DateTime limite = res.first[0] as DateTime;
-      DateTime entrega = DateTime.parse(_fechaEntrega.text);
+      DateTime limiteRaw = res.first[0] as DateTime;
+      DateTime entregaRaw = DateTime.parse(_fechaEntrega.text);
+
+// NORMALIZACIÓN: Forzamos a ambos a ser año-mes-día puro en formato local
+      DateTime limite = DateTime(limiteRaw.year, limiteRaw.month, limiteRaw.day);
+      DateTime entrega = DateTime(entregaRaw.year, entregaRaw.month, entregaRaw.day);
 
       await conn.execute(Sql.named('UPDATE prestamo SET fecha_entrega = @fe WHERE id_prestamo = @id'), parameters: {'fe': _fechaEntrega.text, 'id': int.parse(_idPrestamo.text)});
       await conn.close();
 
       if (!mounted) return;
 
+// Ahora la comparación será 100% exacta por días enteros
       if (entrega.isAfter(limite)) {
         int dias = entrega.difference(limite).inDays;
         double multa = dias * 15.0; // 15 pesos por día de retraso
