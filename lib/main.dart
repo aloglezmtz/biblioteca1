@@ -201,9 +201,8 @@ class HomeScreen extends StatelessWidget {
               _crearItemMenu(context, 'Gestión de Profesores', Icons.work, 'PROFESORES'),
               _crearItemMenu(context, 'Gestión de Empleados', Icons.badge, 'EMPLEADOS'),
             ],
-            if (rolActivo == 'EMPLEADO' || rolActivo == 'ADMIN') ...[
+            if (rolActivo == 'EMPLEADO') ...[
               _crearItemMenu(context, 'Gestión de Libros', Icons.menu_book, 'LIBROS'),
-              // SE AGREGÓ EL MENÚ DE PRÉSTAMOS (AVANCE 3)
               _crearItemMenu(context, 'Gestión de Préstamos', Icons.assignment, 'PRÉSTAMOS'),
             ],
 
@@ -477,8 +476,9 @@ class _TablaScreenState extends State<TablaScreen> {
 
       String t = "";
       // CORREGIDO: Tablas en minúsculas para el SELECT
-      if (widget.tipo == 'ALUMNOS') t = 'alumno';
-      else if (widget.tipo == 'PROFESORES') t = 'profesor';
+      if (widget.tipo == 'ALUMNOS') {
+        t = 'alumno';
+      } else if (widget.tipo == 'PROFESORES') t = 'profesor';
       else if (widget.tipo == 'EMPLEADOS') t = 'empleado';
       else if (widget.tipo == 'LIBROS') t = 'libro';
       else if (widget.tipo == 'PRÉSTAMOS') t = 'prestamo'; // SE AGREGÓ PARA LA NUEVA TABLA (AVANCE 3)
