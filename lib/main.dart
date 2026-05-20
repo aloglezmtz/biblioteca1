@@ -1,15 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:postgres/postgres.dart';
-// LIBRERÍAS NUEVAS PARA EL PDF (AVANCE 3)
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
+import 'package:mailer/mailer.dart';
+import 'package:mailer/smtp_server.dart';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 
 void main() {
   runApp(const BibliotecaApp());
 }
 
-// Variables globales para la sesión
 String rolActivo = "";
 String usuarioActivo = "";
 
@@ -34,7 +36,6 @@ class BibliotecaApp extends StatelessWidget {
   }
 }
 
-// --- CONEXIÓN A BASE DE DATOS ---
 Future<Connection> _obtenerConexion() async {
   return await Connection.open(
     Endpoint(
@@ -42,15 +43,13 @@ Future<Connection> _obtenerConexion() async {
       port: 5432,
       database: 'Biblioteca',
       username: 'postgres',
-      password: 'taco123',
+      password: '',
     ),
     settings: const ConnectionSettings(sslMode: SslMode.disable),
   );
 }
 
-// ==========================================================
-// 1. PANTALLA DE LOGIN (Interfaz Principal)
-// ==========================================================
+
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
@@ -67,8 +66,6 @@ class _LoginScreenState extends State<LoginScreen> {
       final conn = await _obtenerConexion();
 
       final result = await conn.execute(
-        //////////////////////////////modificar contrasenia
-        // CORREGIDO: "Usuario" a usuario en minúsculas
         Sql.named('SELECT * FROM usuario WHERE nombre_del_usuario = @u AND contraseña = @p'),
         parameters: {
           'u': _userController.text,
@@ -79,8 +76,6 @@ class _LoginScreenState extends State<LoginScreen> {
 
       if (result.isNotEmpty) {
         usuarioActivo = _userController.text;
-        // Asignación de roles basada en el segundo código
-
         rolActivo = (usuarioActivo == 'administrador') ? 'ADMIN' : 'EMPLEADO';
 
         if (!mounted) return;
@@ -157,9 +152,7 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 }
 
-// ==========================================================
-// 2. DASHBOARD / HOME (Menú General con Drawer)
-// ==========================================================
+
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -177,7 +170,6 @@ class HomeScreen extends StatelessWidget {
           ),
         ],
       ),
-      // MENÚ GENERAL (Drawer de 3 líneas)
       drawer: Drawer(
         child: ListView(
           padding: EdgeInsets.zero,
@@ -195,7 +187,6 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
 
-            // Opciones dinámicas según el rol
             if (rolActivo == 'ADMIN') ...[
               _crearItemMenu(context, 'Gestión de Alumnos', Icons.school, 'ALUMNOS'),
               _crearItemMenu(context, 'Gestión de Profesores', Icons.work, 'PROFESORES'),
@@ -236,23 +227,19 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  // Helper para generar las opciones del Drawer y navegar a sus respectivas pantallas
   Widget _crearItemMenu(BuildContext context, String titulo, IconData icono, String modulo) {
     return ListTile(
       leading: Icon(icono, color: Colors.indigo),
       title: Text(titulo, style: const TextStyle(fontWeight: FontWeight.w600)),
       trailing: const Icon(Icons.arrow_forward_ios, size: 14),
       onTap: () {
-        Navigator.pop(context); // Cierra el Drawer
+        Navigator.pop(context); 
         Navigator.push(context, MaterialPageRoute(builder: (context) => SubMenuScreen(modulo: modulo)));
       },
     );
   }
 }
 
-// ==========================================================
-// 3. PANTALLA DE SUBMENÚ (Cada menú tiene la suya)
-// ==========================================================
 class SubMenuScreen extends StatelessWidget {
   final String modulo;
   const SubMenuScreen({super.key, required this.modulo});
@@ -267,7 +254,6 @@ class SubMenuScreen extends StatelessWidget {
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
-        // CONDICIÓN PARA MOSTRAR LAS OPCIONES DEL AVANCE 3 SI ES PRÉSTAMOS
         children: modulo == 'PRÉSTAMOS'
             ? [
           _opcion(context, 'Registrar préstamo', Icons.add_circle_outline, () => Navigator.push(context, MaterialPageRoute(builder: (context) => const FormPrestamoScreen()))),
@@ -304,9 +290,6 @@ class SubMenuScreen extends StatelessWidget {
   }
 }
 
-// ==========================================================
-// 4. FORMULARIOS DINÁMICOS
-// ==========================================================
 class FormularioScreen extends StatefulWidget {
   final String tipo;
   const FormularioScreen({super.key, required this.tipo});
@@ -343,7 +326,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
       String sql = "";
       Map<String, dynamic> p = {};
 
-      // CORREGIDO: Tablas en minúsculas en el INSERT
       if (widget.tipo == 'ALUMNOS') {
         sql = "INSERT INTO alumno VALUES (@c,@n,@ca,@co,@d,@t,@s,@f)";
         p = {
@@ -399,7 +381,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
         const SnackBar(content: Text('Guardado en la Base de Datos con éxito'), backgroundColor: Colors.green),
       );
 
-      // Limpiar campos después de guardar
       for (var key in _ctrls.keys) {
         _ctrls[key]!.clear();
       }
@@ -455,9 +436,6 @@ class _FormularioScreenState extends State<FormularioScreen> {
   }
 }
 
-// ==========================================================
-// 5. TABLAS DINÁMICAS
-// ==========================================================
 class TablaScreen extends StatefulWidget {
   final String tipo;
   const TablaScreen({super.key, required this.tipo});
@@ -470,18 +448,17 @@ class _TablaScreenState extends State<TablaScreen> {
   List<List<dynamic>> _filas = [];
   List<String> _cabecera = [];
 
-  Future<void> _leer() async {
+  Future<void> _read() async {
     try {
       final conn = await _obtenerConexion();
 
       String t = "";
-      // CORREGIDO: Tablas en minúsculas para el SELECT
       if (widget.tipo == 'ALUMNOS') {
         t = 'alumno';
       } else if (widget.tipo == 'PROFESORES') t = 'profesor';
       else if (widget.tipo == 'EMPLEADOS') t = 'empleado';
       else if (widget.tipo == 'LIBROS') t = 'libro';
-      else if (widget.tipo == 'PRÉSTAMOS') t = 'prestamo'; // SE AGREGÓ PARA LA NUEVA TABLA (AVANCE 3)
+      else if (widget.tipo == 'PRÉSTAMOS') t = 'prestamo'; 
 
       final res = await conn.execute('SELECT * FROM $t');
 
@@ -510,7 +487,7 @@ class _TablaScreenState extends State<TablaScreen> {
   @override
   void initState() {
     super.initState();
-    _leer();
+    _read();
   }
 
   @override
@@ -548,9 +525,6 @@ class _TablaScreenState extends State<TablaScreen> {
   }
 }
 
-// ==========================================================
-// FORMULARIO NUEVO: REGISTRAR PRÉSTAMO (AUTOMÁTICO 7 DÍAS) (AVANCE 3)
-// ==========================================================
 class FormPrestamoScreen extends StatefulWidget {
   const FormPrestamoScreen({super.key});
 
@@ -624,9 +598,7 @@ class _FormPrestamoScreenState extends State<FormPrestamoScreen> {
   }
 }
 
-// ==========================================================
-// FORMULARIO NUEVO: DEVOLVER PRÉSTAMO (Y GENERAR PDF MULTA) (AVANCE 3)
-// ==========================================================
+
 class FormDevolverScreen extends StatefulWidget {
   const FormDevolverScreen({super.key});
 
@@ -638,60 +610,139 @@ class _FormDevolverScreenState extends State<FormDevolverScreen> {
   final _idPrestamo = TextEditingController();
   final _fechaEntrega = TextEditingController();
 
-  Future<void> _generarPdfMulta(String id, int dias, double monto) async {
+  Future<void> _generarPdfMultaYEnviarCorreo(String id, int dias, double monto, String correoDestino, String libroInfo, String tipoLector) async {
     final doc = pw.Document();
     doc.addPage(
       pw.Page(
         build: (pw.Context context) => pw.Center(
           child: pw.Column(
             mainAxisAlignment: pw.MainAxisAlignment.center,
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
             children: [
-              pw.Text("BIBLIOTECA - NOTIFICACION DE MULTA", style: pw.TextStyle(fontSize: 24, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
-              pw.SizedBox(height: 30),
-              pw.Text("ID de Préstamo: $id", style: const pw.TextStyle(fontSize: 18)),
-              pw.Text("Días de retraso: $dias", style: const pw.TextStyle(fontSize: 18)),
+              pw.Center(
+                child: pw.Text("BIBLIOTECA - NOTIFICACION DE MULTA", style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold, color: PdfColors.red900)),
+              ),
+              pw.SizedBox(height: 25),
+              pw.Text("Detalles de la Cuenta:", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text("ID de Préstamo: $id", style: const pw.TextStyle(fontSize: 12)),
+              pw.Text("Tipo de Usuario: $tipoLector", style: const pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(height: 15),
+              pw.Text("Información de Libros Entregados con Retraso:", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text(libroInfo, style: const pw.TextStyle(fontSize: 12)),
+              pw.SizedBox(height: 15),
+              pw.Text("Detalle del Cálculo:", style: pw.TextStyle(fontSize: 14, fontWeight: pw.FontWeight.bold)),
+              pw.Text("Días de retraso: $dias días", style: const pw.TextStyle(fontSize: 12)),
+              pw.Text("Cuota por día: \$${(monto / dias).toStringAsFixed(2)} MXN", style: const pw.TextStyle(fontSize: 12)),
               pw.SizedBox(height: 20),
-              pw.Text("Monto Total a Pagar: \$${monto.toStringAsFixed(2)} MXN", style: pw.TextStyle(fontSize: 22, fontWeight: pw.FontWeight.bold)),
-              pw.SizedBox(height: 40),
-              pw.Text("Favor de pasar a pagar a caja. Este recibo fue enviado a su correo."),
+              pw.Center(
+                child: pw.Text("Monto Total a Pagar: \$${monto.toStringAsFixed(2)} MXN", style: pw.TextStyle(fontSize: 18, fontWeight: pw.FontWeight.bold, color: PdfColors.red)),
+              ),
+              pw.SizedBox(height: 35),
+              pw.Center(
+                child: pw.Text("Favor de pasar a pagar a caja. Este recibo fue enviado a su correo.", style: pw.TextStyle(fontSize: 11, fontStyle: pw.FontStyle.italic)),
+              ),
             ],
           ),
         ),
       ),
     );
-    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => doc.save(), name: 'multa.pdf');
+
+    final pdfBytes = await doc.save();
+    await Printing.layoutPdf(onLayout: (PdfPageFormat format) async => pdfBytes, name: 'multa_$id.pdf');
+
+    String emailRemitente = 'bibliotechescuela@gmail.com';
+    String passwordApp = 'uofvydxkvcuddpal';
+
+    final smtpServer = gmail(emailRemitente, passwordApp);
+
+    final message = Message()
+      ..from = Address(emailRemitente, 'BiblioTech Sistema')
+      ..recipients.add(correoDestino)
+      ..subject = 'Notificación de Multa por Retraso - BiblioTech'
+      ..text = 'Estimado usuario,\n\nAdjunto encontrará el recibo detallado de su multa por el retraso en la devolución de su préstamo con ID $id.\n\nDetalles del libro: $libroInfo\nTotal a Liquidar: \$$monto MXN.\n\nPor favor pase a caja a regularizar su situación.\n\nSaludos.'
+      ..attachments.add(
+        StreamAttachment(
+          Stream.value(pdfBytes),
+          'application/pdf',
+          fileName: 'multa_retraso_$id.pdf',
+        )
+      );
+
+    try {
+      final sendReport = await send(message, smtpServer);
+      debugPrint('Mensaje enviado: $sendReport');
+    } catch (e) {
+      debugPrint('El correo no se pudo enviar. Error: $e');
+    }
   }
 
   Future<void> _devolver() async {
     try {
       final conn = await _obtenerConexion();
 
-      final res = await conn.execute(Sql.named('SELECT fecha_limite FROM prestamo WHERE id_prestamo = @id'), parameters: {'id': int.parse(_idPrestamo.text)});
+      final res = await conn.execute(Sql.named('SELECT fecha_limite, isbn, num_ejemplar, codigo_lector FROM prestamo WHERE id_prestamo = @id'), parameters: {'id': int.parse(_idPrestamo.text)});
       if (res.isEmpty) {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('El ID del préstamo no existe'), backgroundColor: Colors.red));
+        await conn.close();
         return;
       }
 
-      DateTime limiteRaw = res.first[0] as DateTime;
-      DateTime entregaRaw = DateTime.parse(_fechaEntrega.text);
+      DateTime limiteRaw;
+      if (res.first[0] is DateTime) {
+        limiteRaw = res.first[0] as DateTime;
+      } else {
+        limiteRaw = DateTime.parse(res.first[0].toString());
+      }
 
-// NORMALIZACIÓN: Forzamos a ambos a ser año-mes-día puro en formato local
+      String isbn = res.first[1].toString();
+      int numEjemplar = int.tryParse(res.first[2].toString()) ?? 0;
+      int codLector = int.tryParse(res.first[3].toString()) ?? 0;
+
+      DateTime entregaRaw = DateTime.parse(_fechaEntrega.text);
       DateTime limite = DateTime(limiteRaw.year, limiteRaw.month, limiteRaw.day);
       DateTime entrega = DateTime(entregaRaw.year, entregaRaw.month, entregaRaw.day);
 
       await conn.execute(Sql.named('UPDATE prestamo SET fecha_entrega = @fe WHERE id_prestamo = @id'), parameters: {'fe': _fechaEntrega.text, 'id': int.parse(_idPrestamo.text)});
-      await conn.close();
 
-      if (!mounted) return;
-
-// Ahora la comparación será 100% exacta por días enteros
       if (entrega.isAfter(limite)) {
         int dias = entrega.difference(limite).inDays;
-        double multa = dias * 15.0; // 15 pesos por día de retraso
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generando archivo multa.pdf...'), backgroundColor: Colors.orange));
-        await _generarPdfMulta(_idPrestamo.text, dias, multa);
+
+        final resLibro = await conn.execute(Sql.named('SELECT titulo FROM libro WHERE isbn = @isbn LIMIT 1'), parameters: {'isbn': isbn});
+        String tituloLibro = resLibro.isNotEmpty ? resLibro.first[0].toString() : "Libro Desconocido";
+        String libroInfo = "$tituloLibro (ISBN: $isbn, Ejemplar No: $numEjemplar)";
+
+        String correoDestino = "";
+        double tarifaPorDia = 0.0;
+        String tipoLector = "";
+
+        var resCorreo = await conn.execute(Sql.named('SELECT correo FROM alumno WHERE codigo = @cod'), parameters: {'cod': codLector});
+
+        if (resCorreo.isNotEmpty) {
+          correoDestino = resCorreo.first[0].toString();
+          tarifaPorDia = 5.0; 
+          tipoLector = "Alumno";
+        } else {
+          resCorreo = await conn.execute(Sql.named('SELECT correo FROM profesor WHERE codigo = @cod'), parameters: {'cod': codLector});
+
+          if (resCorreo.isNotEmpty) {
+            correoDestino = resCorreo.first[0].toString();
+            tarifaPorDia = 10.0; 
+            tipoLector = "Profesor";
+          }
+        }
+        
+        double multa = dias * tarifaPorDia;
+
+        await conn.close(); 
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Generando multa y enviando correo...'), backgroundColor: Colors.orange));
+        
+        await _generarPdfMultaYEnviarCorreo(_idPrestamo.text, dias, multa, correoDestino, libroInfo, tipoLector);
       } else {
+        await conn.close();
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Devuelto a tiempo. Sin multa.'), backgroundColor: Colors.green));
       }
     } catch (e) {
