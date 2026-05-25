@@ -20,7 +20,7 @@ class _LoginScreenState extends State<LoginScreen> {
       final conn = await obtenerConexion();
 
       final result = await conn.execute(
-        Sql.named('SELECT * FROM usuario WHERE nombre_del_usuario = @u AND contraseña = @p'),
+        Sql.named('SELECT * FROM usuario WHERE nombre_del_usuario = @u AND contrasena = @p'),
         parameters: {
           'u': _userController.text,
           'p': _passwordController.text,

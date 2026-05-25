@@ -7,7 +7,7 @@ Future<Connection> obtenerConexion() async {
       port: 5432,
       database: 'Biblioteca',
       username: 'postgres',
-      password: '',
+      password: 'taco123',
     ),
     settings: const ConnectionSettings(sslMode: SslMode.disable),
   );
